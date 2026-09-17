@@ -12,6 +12,25 @@ Use this reference for browser-based job applications, LinkedIn Easy Apply, Simp
 - Stop rather than bypass verification or guess high-impact answers.
 - Do not create separate "test" and "normal" behavior modes. Use one default behavior: automate clear low-risk fields, ask focused questions for missing high-impact facts, and always stop before final submit.
 
+## Batch Filling & Consolidated Verification
+
+Use this execution pattern by default with the current authorized browser tool:
+
+1. **Prepare once.** Assemble the chosen resume, selected structured entries, confirmed profile answers, and unresolved questions into a compact application packet. Inspect the relevant form sections together for field labels/types, required fields, existing values, and validation errors. Reuse this packet during the application; refresh only changed facts or newly exposed requirements.
+2. **Fill a predictable batch.** In one tool call, execute as many known actions as the tool supports within its timeout: normally a complete basic-information, education, internship, or project module; combine adjacent simple modules when practical. Use sequential awaited UI actions on the same page, not concurrent mutations. Include save and readback in that call when their controls and resulting state are known. A normal text field does not need its own model turn.
+3. **Respect dependencies.** For dependent dropdowns, autocomplete, dates, and newly added entries, wait for the actual options or controls to appear and select real options. Continue within the batch when the next step is observed and unambiguous. An unexpected modal, navigation, or ambiguous control ends that batch with its progress and relevant state returned. Do not guess stale locators, use hidden write APIs, or remove necessary waits to increase batch size; avoid arbitrary sleeps when an observable readiness condition is available.
+4. **Audit together.** After the module is saved, read back all its values, entry counts, date controls, save status, and validation errors in one inspection. Return a compact coverage/result summary plus mismatches, missing values, and errors. Do not read the full page or take a screenshot after every successful field. Use broader inspection for an unfamiliar page, the final whole-application review, or a problem that scoped inspection cannot explain.
+5. **Repair only differences.** If a batch partially fails, inspect the current state and resume from the unfinished fields. Preserve correct values and saved entries; check before adding an entry again to avoid duplicates. Retry a failed interaction once with a targeted alternative, then report the remaining blocker instead of replaying the entire batch.
+
+Collect missing facts and custom-answer confirmations into one focused request where possible, and continue independent confirmed fields while waiting. Keep verification, login, permission, and final-submission boundaries intact. Before final approval, audit the whole application together, including attachments and every required experience; batching changes the number of round trips, not the coverage of checks. After an authorized submission is confirmed, batch the required local dashboard updates and their consistency checks immediately, before starting another company.
+
+### Completion Audit Coverage
+
+- Inspect every structured entry after parsing and after saving, grouping checks by module: start/end date controls, institution/company, title/major, descriptions, and project responsibilities. Dates embedded in prose do not fill date controls. Keep the source date precision; ask for an exact date or an authorized placeholder convention if the form requires more precision.
+- Check all user-required sections and entries, including campus roles, certificate dates, and photos when applicable. Every field must be covered, but does not require an individual tool call.
+- Verify the primary resume is the chosen version, not merely an extra attachment. Re-parsing can overwrite repaired fields, so audit again after replacement.
+- Read saved values and validation messages back. A completeness percentage alone is not proof of completeness; report unresolved fields before requesting final submission approval.
+
 ## Form Answer Defaults
 
 - Basic fields with clear profile values can be filled automatically: name, email, phone, LinkedIn, location, resume upload, and start date.

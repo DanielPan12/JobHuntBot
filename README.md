@@ -70,6 +70,10 @@ dashboard/                       A ready-to-run local dashboard (same CSV schema
 
 7. **Keep applying with the agent's help**, one company at a time — this is where the browser automation from step 2 actually gets used. It updates `job_pool.csv`, `application_log.csv`, `blocker_queue.csv`, and `follow_up.csv` as it goes, and always pauses for your explicit confirmation before a final submit.
 
+### Faster Form Filling
+
+The workflow defaults to filling a complete form section, or several predictable adjacent sections, in one browser-tool call. The agent prepares confirmed answers once, checks saved values and validation errors together, and repairs only differences. If a batch is interrupted, it checks what was saved and resumes from unfinished fields. Dependent controls still wait for real options, and final submission still requires your confirmation. See [the application playbook](references/application-playbook.md#batch-filling--consolidated-verification) for the execution rules.
+
 ## The Dashboard
 
 The dashboard is a static HTML page + a tiny local Node server (no framework, no build, no external dependencies). It groups your `job_pool.csv` rows into three views:
@@ -173,6 +177,10 @@ dashboard/                       开箱即用的本地进度看板(CSV结构与�
    - 会在浏览器打开 `http://localhost:8420/dashboard.html`,实时读取同目录下的 CSV——每次刷新都是最新状态,不需要构建、不需要外部服务器,数据也不会离开你的电脑。
 
 7. **在 Agent 的帮助下继续投递**,一次处理一家公司——这一步才会真正用到第2步配的浏览器自动化。它会持续更新 `job_pool.csv`、`application_log.csv`、`blocker_queue.csv`、`follow_up.csv`,并且在每次真正点击提交前,一定会停下来等你明确确认。
+
+### 填报提速
+
+工作流默认在一次浏览器工具调用中填写完整模块，条件明确时合并多个相邻模块。Agent 会集中准备已确认信息，统一核对保存结果和报错，只修复差异；批次中断后先核对已保存内容，再从未完成处续填。联动控件仍等待真实选项，最终提交仍需你确认。具体执行规则见[填报操作手册](references/application-playbook.md#batch-filling--consolidated-verification)。
 
 ### 关于看板
 
