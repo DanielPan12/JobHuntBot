@@ -182,6 +182,9 @@ function createDashboardServer({ root = __dirname, io = fs } = {}) {
       try { urlPath = decodeURIComponent(req.url.split('?')[0]); }
       catch (_) { throw problem(400, 'Malformed URL encoding'); }
       if (urlPath.includes('\0')) throw problem(400, 'Invalid URL path');
+      // Backslashes are filesystem separators on Windows; reject them uniformly
+      // before path resolution so the same URL has the same boundary on all OSes.
+      if (urlPath.includes('\\')) throw problem(403, 'Forbidden');
       if (Object.hasOwn(routes, urlPath)) {
         if (req.method !== 'POST') throw problem(405, 'Method not allowed');
         if (req.headers.origin && req.headers.origin !== 'http://' + host) throw problem(403, 'Cross-origin writes are not allowed');
