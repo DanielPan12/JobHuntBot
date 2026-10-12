@@ -80,8 +80,12 @@
   #connect-screen p { color: var(--text-secondary); max-width: 480px; margin: 12px auto 24px; line-height:1.6; }
   #connect-screen .warn { color: var(--status-serious); font-size: 13px; margin-top:16px; }
 
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 900px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 640px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 380px) { .tiles { grid-template-columns: 1fr; } }
   .tile {
+    display: flex; flex-direction: column; align-items: flex-start;
     background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
     padding: 24px; cursor: pointer; text-align: left; transition: border-color .15s;
   }
@@ -127,10 +131,16 @@
 
   .detail { margin-top:10px; padding-top:10px; border-top: 1px solid var(--gridline); font-size:13px; color: var(--text-secondary); line-height:1.6; display:none; }
   .card.open .detail { display:block; }
+  .pending-role + .pending-role { margin-top:14px; padding-top:14px; border-top:1px solid var(--gridline); }
+  .pending-role h3 { margin:0 0 6px; font-size:14px; color:var(--text-primary); }
   .detail dt { color: var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.03em; margin-top:8px; }
   .detail dt:first-child { margin-top:0; }
   .detail dd { margin:2px 0 0; }
   .detail a { color: var(--series-1); }
+  .view-note { font-size:13px; color:var(--text-secondary); line-height:1.6; }
+  .action-card { overflow-wrap:anywhere; }
+  .action-card .card-sub { line-height:1.6; }
+  .action-section + .action-section { border-top:1px dashed var(--gridline); margin-top:12px; padding-top:12px; }
 
   .empty { color: var(--text-muted); font-size:14px; padding: 24px 0; text-align:center; }
   .timeline-item { padding: 4px 0; border-bottom: 1px dashed var(--gridline); }
@@ -192,17 +202,27 @@
         <button class="tile" data-view="applied">
           <div class="label">已投递</div>
           <div class="value" id="tile-applied">–</div>
-          <div class="sub">进行中的投递</div>
+          <div class="sub">进行中的投递 · 按岗位计数</div>
         </button>
         <button class="tile" data-view="pending">
           <div class="label">未投递</div>
           <div class="value" id="tile-pending">–</div>
-          <div class="sub">目标池里还没投的公司</div>
+          <div class="sub">尚无投递记录 · 按公司计数</div>
         </button>
-        <button class="tile" data-view="ended">
-          <div class="label">已结束</div>
-          <div class="value" id="tile-ended">–</div>
-          <div class="sub">拿到 offer 或已被拒</div>
+        <button class="tile" data-view="rejected">
+          <div class="label">已挂</div>
+          <div class="value" id="tile-rejected">–</div>
+          <div class="sub">已收到拒绝结果 · 按岗位计数</div>
+        </button>
+        <button class="tile" data-view="offers">
+          <div class="label">拿到 Offer</div>
+          <div class="value" id="tile-offers">–</div>
+          <div class="sub">已收到录用结果 · 按岗位计数</div>
+        </button>
+        <button class="tile" data-view="actions">
+          <div class="label">集中待办</div>
+          <div class="value" id="tile-actions">–</div>
+          <div class="sub">待补信息、流程阻塞与提交后修正</div>
         </button>
       </div>
 
@@ -275,20 +295,46 @@
       <div id="pending-notopen-list"></div>
     </div>
 
-    <div id="ended-view" class="hidden">
+    <div id="actions-view" class="hidden">
       <div class="view-header">
-        <div><button class="back-link" data-back>← 返回</button><h2>已结束</h2></div>
+        <div><button class="back-link" data-back>← 返回</button><h2>集中待办</h2></div>
         <div class="filters">
-          <input type="text" id="ended-search" placeholder="搜索公司…">
+          <input type="text" id="actions-search" placeholder="搜索公司、岗位或缺漏…" aria-label="搜索集中待办">
+          <button class="btn" id="actions-expand">展开全部</button>
         </div>
       </div>
-      <div id="ended-list"></div>
+      <p class="view-note">这里汇总岗位池中的待补信息、流程阻塞和未关闭的问题。同一岗位的多个事项一起保留；已有投递的公司也会显示。展开可查看已完成进度、剩余事项和下一步。</p>
+      <div class="section-title" id="actions-count"></div>
+      <div id="actions-list"></div>
+    </div>
+
+    <div id="rejected-view" class="hidden">
+      <div class="view-header">
+        <div><button class="back-link" data-back>← 返回</button><h2>已挂</h2></div>
+        <div class="filters">
+          <select id="rejected-filter-cat" aria-label="已挂岗位企业分类"><option value="">全部分类</option></select>
+          <input type="text" id="rejected-search" placeholder="搜索公司或岗位…" aria-label="搜索已挂岗位">
+        </div>
+      </div>
+      <div id="rejected-list"></div>
+    </div>
+
+    <div id="offers-view" class="hidden">
+      <div class="view-header">
+        <div><button class="back-link" data-back>← 返回</button><h2>拿到 Offer</h2></div>
+        <div class="filters">
+          <select id="offers-filter-cat" aria-label="Offer 岗位企业分类"><option value="">全部分类</option></select>
+          <input type="text" id="offers-search" placeholder="搜索公司或岗位…" aria-label="搜索 Offer 岗位">
+        </div>
+      </div>
+      <div id="offers-list"></div>
     </div>
 
   </div>
 
 </main>
 
+<script src="./dashboard-model.js"></script>
 <script>
 (function(){
 
@@ -309,51 +355,80 @@
 
   // ---------- csv parsing ----------
   function parseCSV(text) {
-    const rows = [];
-    let row = [], field = '', inQuotes = false;
-    for (let i = 0; i < text.length; i++) {
-      const c = text[i], next = text[i+1];
-      if (inQuotes) {
-        if (c === '"' && next === '"') { field += '"'; i++; }
-        else if (c === '"') { inQuotes = false; }
-        else { field += c; }
-      } else {
-        if (c === '"') { inQuotes = true; }
-        else if (c === ',') { row.push(field); field = ''; }
-        else if (c === '\r') { /* skip */ }
-        else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-        else { field += c; }
-      }
-    }
-    if (field.length || row.length) { row.push(field); rows.push(row); }
-    while (rows.length && rows[rows.length-1].length === 1 && rows[rows.length-1][0] === '') rows.pop();
-    if (!rows.length) return [];
+    const rows = parseCSVRows(text);
     const header = rows.shift();
-    return rows.filter(r => !(r.length === 1 && r[0] === '')).map(r => {
-      const obj = {};
-      header.forEach((h, idx) => obj[h] = r[idx] !== undefined ? r[idx] : '');
-      return obj;
+    const dataRows = rows.filter(row => !(row.length === 1 && row[0] === ''));
+    validateRows(header, dataRows);
+    return dataRows.map(row => Object.fromEntries(header.map((column, index) => [column, row[index]])));
+  }
+
+  function parseCSVRows(text) {
+    text = String(text).replace(/^\uFEFF/, '');
+    const rows = [];
+    let row = [], field = '', quoted = false, closed = false, started = false;
+    const finishField = () => { row.push(field); field = ''; closed = false; started = false; };
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (quoted) {
+        if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+        else if (c === '"') { quoted = false; closed = true; }
+        else field += c;
+      } else if (c === ',') finishField();
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        finishField(); rows.push(row); row = [];
+      } else if (closed) throw new Error('CSV has text after a closing quote');
+      else if (c === '"') {
+        if (started) throw new Error('CSV has a quote inside an unquoted field');
+        quoted = true; started = true;
+      } else { field += c; started = true; }
+    }
+    if (quoted) throw new Error('CSV has an unterminated quoted field');
+    if (started || closed || row.length) { finishField(); rows.push(row); }
+    return rows;
+  }
+
+  function validateRows(header, dataRows) {
+    if (!Array.isArray(header) || !header.length || header.some(name => !name.trim())) {
+      throw new Error('CSV needs a non-empty header');
+    }
+    if (new Set(header).size !== header.length) throw new Error('CSV contains duplicate column names');
+    dataRows.forEach((row, index) => {
+      if (row.length !== header.length) {
+        throw new Error(`CSV record ${index + 2} has ${row.length} columns; expected ${header.length}`);
+      }
+      if (row.every((value, column) => value === header[column])) {
+        throw new Error(`CSV record ${index + 2} repeats the header`);
+      }
     });
   }
 
+
   // ---------- data ----------
-  const data = { jobPool: [], appLog: [], followUp: [] };
+  const data = { jobPool: [], appLog: [], followUp: [], blockerQueue: [], companyCategories: {} };
 
   async function readCSVFile(name) {
     const res = await fetch('./' + name + '?t=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) throw new Error(name + ' 读取失败 (HTTP ' + res.status + ')');
-    return parseCSV(await res.text());
+    const text = await res.text();
+    try { return parseCSV(text); }
+    catch (error) { throw new Error(name + ' 数据格式错误：' + error.message); }
   }
 
   async function loadAll() {
     const warnEl = document.getElementById('connect-warn');
     try {
+      const categoryResponse = await fetch('./company_categories.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!categoryResponse.ok) throw new Error('公司分类读取失败 (HTTP ' + categoryResponse.status + ')');
+      data.companyCategories = (await categoryResponse.json()).companies;
+      if (!data.companyCategories || typeof data.companyCategories !== 'object') throw new Error('公司分类数据格式错误');
       data.jobPool = await readCSVFile('job_pool.csv');
       // Row position in job_pool.csv (excluding header) — this is how the
-      // "mark as ended" action tells the server which row to update.
+      // "record outcome" action tells the server which row to update.
       data.jobPool.forEach((r, i) => { r.__rowIndex = i; });
-      data.appLog = await readCSVFile('application_log.csv').catch(() => []);
-      data.followUp = await readCSVFile('follow_up.csv').catch(() => []);
+      [data.appLog, data.followUp, data.blockerQueue] = await Promise.all([
+        readCSVFile('application_log.csv'), readCSVFile('follow_up.csv'), readCSVFile('blocker_queue.csv'),
+      ]);
       // Row position in follow_up.csv (excluding header) — needed to edit/delete a calendar event.
       data.followUp.forEach((r, i) => { r.__rowIndex = i; });
     } catch (e) {
@@ -370,14 +445,28 @@
     renderHome();
     renderApplied();
     renderPending();
-    renderEnded();
+    renderOutcome('rejected', 'Rejected');
+    renderOutcome('offers', 'Offer');
+    renderActions();
     renderCalendar();
   }
 
   // ---------- categorization helpers ----------
   function category(row) {
-    const m = (row.notes || '').match(/分类[:：]\s*(第[一二三]类)/);
-    return m ? m[1] : '未分类';
+    return DashboardModel.companyClassification(row, data.companyCategories)?.category || '待分类';
+  }
+  function compareCategories(a, b) {
+    const order = label => {
+      const index = DashboardModel.categoryNames.indexOf(label);
+      return index < 0 ? DashboardModel.categoryNames.length : index;
+    };
+    return order(a) - order(b);
+  }
+  function classificationDetail(row) {
+    const info = DashboardModel.companyClassification(row, data.companyCategories);
+    if (!info) return '<dt>企业分类</dt><dd>待补充公司分类</dd>';
+    const basis = { existing: '沿用已有分类', recommended: '自动推荐，可调整', user: '用户确认' }[info.basis] || '已记录';
+    return `<dt>企业分类</dt><dd>${esc(info.category)} · ${esc(basis)}${info.updated_on ? ' · ' + esc(info.updated_on) : ''}<br>${esc(info.reason)}</dd>`;
   }
   function catChipClass(cat) {
     if (cat === '第一类') return 'chip-cat1';
@@ -385,54 +474,53 @@
     if (cat === '第三类') return 'chip-cat3';
     return '';
   }
-  // "已确认开放" used to be guessed from free-text notes/next_action with
-  // keyword + negation regex. That heuristic rots into false positives once
-  // notes get longer and more nuanced (e.g. a phrase containing both "开放"
-  // and "未开" in the same sentence), and worse, it looks "stable" even when
-  // wrong because the guess doesn't change when the real-world fact does.
-  // Read the structured job_pool.csv column `cohort_match_status`
-  // (Yes/Unclear/No) instead — this column is explicitly set by the agent or
-  // the user after each recheck, so it only changes when the underlying fact
-  // actually changes.
+  // "已确认开放" 曾经是从 notes/next_action 自由文本里用关键词+否定词猜的，
+  // 这套正则启发式在 notes 内容变多变复杂后（比如"实习已开放但全职未开"这种
+  // 短语里同时含"已开放"和"未开"）会大量误判，本质上是不可靠的、看起来像是
+  // "固定不动"（因为猜错的结果不会随人工验证结论的变化而变化）。已改为直接读取
+  // job_pool.csv 的结构化列 cohort_match_status（Yes/Unclear/No），这一列由
+  // 每轮官网复查后人工/Claude 显式判定并写入，不再靠猜——数据一变，这里跟着变。
   function isCycleOpen(row) {
     return row.cohort_match_status === 'Yes';
   }
   function esc(s) {
-    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function escMultiline(s) {
     return esc(s).replace(/\n/g, '<br>');
   }
-  function jdFor(company) {
-    const logs = logsFor(company);
-    if (!logs.length) return '';
-    const l = logs[logs.length-1];
-    return (l.job_description || '').trim();
+  function jobLink(url) {
+    try {
+      const parsed = new URL(url);
+      if (['http:', 'https:'].includes(parsed.protocol)) return `<a href="${esc(parsed.href)}" target="_blank" rel="noopener">${esc(url)}</a>`;
+    } catch (_) { /* Display unrecognized URLs as text, never executable links. */ }
+    return esc(url);
   }
-  function followUpsFor(company) {
-    return data.followUp
-      .filter(f => f.company === company)
-      .sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  function jdFor(row) {
+    return (DashboardModel.latestApplication(row, data.appLog, data.jobPool)?.job_description || '').trim();
   }
-  function logsFor(company) {
-    return data.appLog.filter(a => a.company === company);
+  function followUpsFor(row) {
+    return DashboardModel.recordsForRole(row, data.followUp, data.jobPool)
+      .sort((a,b) => ((a.date||'') + (a.time||'')).localeCompare((b.date||'') + (b.time||'')));
   }
   // 投递日期的真实来源是 application_log.csv 的 attempt_date（实际点击提交那天），
   // 不是 job_pool.csv 的 date_found（发现/加入职位池那天）——两者常常不是同一天
-  // （比如先加入池子，几天后卡点/等用户处理完才真正点提交）。取该公司最新一条
-  // 投递记录的 attempt_date；只有在完全没有日志时才退回 date_found 兜底。
+  // 按准确岗位关联，再按实际日期选择成功记录，不依赖 CSV 插入顺序。
   function submittedDateFor(r) {
-    const logs = logsFor(r.company);
-    if (logs.length) return logs[logs.length - 1].attempt_date || r.date_found;
-    return r.date_found;
+    return DashboardModel.latestApplication(r, data.appLog, data.jobPool)?.attempt_date || '';
   }
-  function submissionMode(company) {
-    const logs = logsFor(company);
-    if (!logs.length) return { label: '记录方式未知', cls: '' };
-    const l = logs[logs.length-1];
+  function submittedDateLabel(r) {
+    const date = submittedDateFor(r);
+    return date ? '投递于 ' + date : '投递日期待核实' + (r.date_found ? ' · 发现于 ' + r.date_found : '');
+  }
+  function submissionMode(row) {
+    const l = DashboardModel.latestApplication(row, data.appLog, data.jobPool);
+    if (!l) return { label: '记录方式未知', cls: '' };
     const blob = (l.submission_evidence||'') + (l.notes||'');
     if (blob.indexOf('用户自行') !== -1) return { label: '用户自行投递（未经工具核实）', cls: 'chip-user' };
-    return { label: 'Claude 浏览器操作（有截图/URL证据）', cls: 'chip-agent' };
+    if (l.submission_evidence || l.confirmation_text || l.confirmation_url) return { label: '已记录投递证据', cls: 'chip-agent' };
+    return { label: '投递证据待补充', cls: '' };
   }
   function currentStage(r) {
     // current_stage on job_pool.csv is set verbatim from the calendar's
@@ -440,7 +528,7 @@
     // since it's a direct user action rather than a guess. Fall back to the
     // older follow_up-derived text for rows that predate that column.
     if (r.current_stage && r.current_stage.trim()) return r.current_stage;
-    const fu = followUpsFor(r.company);
+    const fu = followUpsFor(r);
     if (!fu.length) return '已投递，等待中';
     const last = fu[fu.length-1];
     return (last.event_type ? last.event_type + '：' : '') + (last.next_action || last.status || '进行中');
@@ -448,12 +536,15 @@
 
   // ---------- home tiles ----------
   function renderHome() {
-    const applied = data.jobPool.filter(r => r.status === 'Submitted');
-    const ended = data.jobPool.filter(r => r.status === 'Offer' || r.status === 'Rejected');
-    const pending = data.jobPool.filter(r => r.status === 'Pending' || r.status === 'Needs user');
+    const applied = data.jobPool.filter(r => DashboardModel.isRoleRecord(r) && r.status === 'Submitted');
+    const rejected = data.jobPool.filter(r => DashboardModel.isRoleRecord(r) && r.status === 'Rejected');
+    const offers = data.jobPool.filter(r => DashboardModel.isRoleRecord(r) && r.status === 'Offer');
+    const pending = DashboardModel.pendingCompanies(data.jobPool, data.appLog);
     document.getElementById('tile-applied').textContent = applied.length;
     document.getElementById('tile-pending').textContent = pending.length;
-    document.getElementById('tile-ended').textContent = ended.length;
+    document.getElementById('tile-rejected').textContent = rejected.length;
+    document.getElementById('tile-offers').textContent = offers.length;
+    document.getElementById('tile-actions').textContent = DashboardModel.actionItems(data.jobPool, data.blockerQueue).length;
   }
 
   // ---------- card builder ----------
@@ -468,18 +559,18 @@
     return div;
   }
 
-  // ---------- mark ended ----------
-  async function markEnded(r, status, btn) {
+  // ---------- record outcome ----------
+  async function recordOutcome(r, status, btn) {
     btn.disabled = true;
     try {
       const res = await fetch('/api/update-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rowIndex: r.__rowIndex, company: r.company, job_title: r.job_title, status }),
+        body: JSON.stringify({ rowIndex: r.__rowIndex, company: r.company, job_title: r.job_title, job_url: r.job_url || '', status }),
       });
       const result = await res.json().catch(() => ({}));
       if (!res.ok || !result.ok) throw new Error(result.error || ('HTTP ' + res.status));
-      location.reload(); // same full-reload pattern as the refresh button, so home tiles / applied / ended all recompute together
+      location.reload(); // Refresh home counts, active applications, and both outcome lists together.
     } catch (e) {
       alert('更新失败：' + e.message);
       btn.disabled = false;
@@ -492,11 +583,11 @@
     const catSel = document.getElementById('applied-filter-cat');
     const search = document.getElementById('applied-search');
 
-    let rows = data.jobPool.filter(r => r.status === 'Submitted');
+    let rows = data.jobPool.filter(r => DashboardModel.isRoleRecord(r) && r.status === 'Submitted');
 
     // populate category filter once
     if (catSel.options.length <= 1) {
-      const cats = [...new Set(rows.map(category))].sort();
+      const cats = [...new Set(rows.map(category))].sort(compareCategories);
       cats.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; catSel.appendChild(o); });
     }
 
@@ -514,11 +605,11 @@
 
       filtered.forEach(r => {
         const cat = category(r);
-        const mode = submissionMode(r.company);
+        const mode = submissionMode(r);
         const stage = currentStage(r);
-        const fu = followUpsFor(r.company);
+        const fu = followUpsFor(r);
         const timeline = fu.map(f => `<div class="timeline-item">${esc(f.date)} — ${esc(f.event_type)}：${esc(f.status)} ${esc(f.next_action)}</div>`).join('') || '<div class="timeline-item">暂无跟进记录</div>';
-        const jd = jdFor(r.company);
+        const jd = jdFor(r);
 
         const html = `
           <div class="card-top">
@@ -530,20 +621,21 @@
                 <span class="chip ${mode.cls}">${esc(mode.label)}</span>
               </div>
             </div>
-            <div class="card-right">投递于 ${esc(submittedDateFor(r))}</div>
+            <div class="card-right">${esc(submittedDateLabel(r))}</div>
           </div>
           <div class="detail">
             <dt>职位/城市</dt><dd>${esc(r.job_title)} · ${esc(r.location)}</dd>
+            ${classificationDetail(r)}
             <dt>岗位描述（JD）</dt><dd>${jd ? escMultiline(jd) : '暂未记录，可在 application_log.csv 的 job_description 列补充'}</dd>
             <dt>备注</dt><dd>${esc(r.notes)}</dd>
             <dt>next_action</dt><dd>${esc(r.next_action)}</dd>
-            ${r.job_url ? `<dt>链接</dt><dd><a href="${esc(r.job_url)}" target="_blank" rel="noopener">${esc(r.job_url)}</a></dd>` : ''}
+            ${r.job_url ? `<dt>链接</dt><dd>${jobLink(r.job_url)}</dd>` : ''}
             <dt>跟进时间线</dt><dd>${timeline}</dd>
             <div class="end-progress">
-              <button class="btn end-trigger">进度已结束</button>
+              <button class="btn end-trigger">记录投递结果</button>
               <div class="end-choices hidden">
-                <button class="btn btn-good end-choice" data-status="Offer">已通过</button>
-                <button class="btn btn-bad end-choice" data-status="Rejected">已被挂</button>
+                <button class="btn btn-good end-choice" data-status="Offer">拿到 Offer</button>
+                <button class="btn btn-bad end-choice" data-status="Rejected">已挂</button>
               </div>
             </div>
           </div>`;
@@ -557,7 +649,7 @@
         card.querySelectorAll('.end-choice').forEach(choiceBtn => {
           choiceBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            markEnded(r, choiceBtn.dataset.status, choiceBtn);
+            recordOutcome(r, choiceBtn.dataset.status, choiceBtn);
           });
         });
         listEl.appendChild(card);
@@ -577,10 +669,11 @@
     const citySel = document.getElementById('pending-filter-city');
     const search = document.getElementById('pending-search');
 
-    let rows = data.jobPool.filter(r => r.status === 'Pending' || r.status === 'Needs user');
+    const companies = DashboardModel.pendingCompanies(data.jobPool, data.appLog);
+    const rows = companies.flatMap(company => company.rows);
 
     if (catSel.options.length <= 1) {
-      [...new Set(rows.map(category))].sort().forEach(c => { const o=document.createElement('option'); o.value=c; o.textContent=c; catSel.appendChild(o); });
+      [...new Set(rows.map(category))].sort(compareCategories).forEach(c => { const o=document.createElement('option'); o.value=c; o.textContent=c; catSel.appendChild(o); });
     }
     if (prioSel.options.length <= 1) {
       [...new Set(rows.map(r => r.priority).filter(Boolean))].sort().forEach(p => { const o=document.createElement('option'); o.value=p; o.textContent=p; prioSel.appendChild(o); });
@@ -589,79 +682,150 @@
       [...new Set(rows.map(r => r.location).filter(Boolean))].sort().forEach(c => { const o=document.createElement('option'); o.value=c; o.textContent=c; citySel.appendChild(o); });
     }
 
-    function rowCard(r) {
-      const cat = category(r);
-      const summary = (r.next_action || '').split(/[；;]/)[0];
-      const unclearChip = r.cohort_match_status === 'Unclear' ? '<span class="chip chip-warning">状态不明确，需人工复核</span>' : '';
+    function companyCard(company) {
+      const unique = values => [...new Set(values.filter(Boolean))];
+      const cats = unique(company.rows.map(category));
+      const cities = unique(company.rows.map(r => r.location));
+      const priorities = unique(company.rows.map(r => r.priority));
+      const unclearChip = company.cohort_match_status === 'Unclear' ? '<span class="chip chip-warning">状态不明确，需人工复核</span>' : '';
+      const details = company.rows.map(r => `
+        <section class="pending-role">
+          <h3>${esc(r.job_title || r.role_family || '待研究岗位')}</h3>
+          <div>${esc(r.location || '城市待确认')} · 优先级 ${esc(r.priority || '待定')} · ${r.cohort_match_status === 'Yes' ? '已确认开放' : r.cohort_match_status === 'No' ? '未确认有可投岗位' : '开放状态待核实'}</div>
+          <dt>下一步</dt><dd>${esc(r.next_action)}</dd>
+          <dt>备注</dt><dd>${escMultiline(r.notes)}</dd>
+          ${r.job_url ? `<dt>链接</dt><dd>${jobLink(r.job_url)}</dd>` : ''}
+        </section>`).join('');
       const html = `
         <div class="card-top">
           <div>
-            <div class="card-title">${esc(r.company)}</div>
-            <div class="card-sub">${esc(r.job_title)} · ${esc(r.location)}</div>
+            <div class="card-title">${esc(company.company)}</div>
+            <div class="card-sub">${company.rows.length} 条岗位 / 方向线索 · ${esc(cities.join('、') || '城市待确认')}</div>
             <div class="tags">
-              <span class="chip ${catChipClass(cat)}">${esc(cat)}</span>
-              <span class="chip">优先级 ${esc(r.priority)}</span>
+              ${cats.map(cat => `<span class="chip ${catChipClass(cat)}">${esc(cat)}</span>`).join('')}
+              <span class="chip">优先级 ${esc(priorities.join(' / ') || '待定')}</span>
               ${unclearChip}
             </div>
           </div>
-          <div class="card-right">${esc(summary)}</div>
+          <div class="card-right">展开查看岗位</div>
         </div>
-        <div class="detail">
-          <dt>next_action</dt><dd>${esc(r.next_action)}</dd>
-          <dt>备注</dt><dd>${esc(r.notes)}</dd>
-          ${r.job_url ? `<dt>链接</dt><dd><a href="${esc(r.job_url)}" target="_blank" rel="noopener">${esc(r.job_url)}</a></dd>` : ''}
-        </div>`;
+        <div class="detail">${classificationDetail(company.rows[0])}${details}</div>`;
       return cardEl(html);
     }
 
     function draw() {
-      let filtered = rows.slice();
-      if (catSel.value) filtered = filtered.filter(r => category(r) === catSel.value);
-      if (prioSel.value) filtered = filtered.filter(r => r.priority === prioSel.value);
-      if (citySel.value) filtered = filtered.filter(r => r.location === citySel.value);
-      if (search.value.trim()) {
-        const q = search.value.trim().toLowerCase();
-        filtered = filtered.filter(r => (r.company||'').toLowerCase().includes(q));
-      }
+      const query = DashboardModel.companyKey(search.value);
+      const filtered = DashboardModel.pendingCompanies(data.jobPool, data.appLog, r =>
+        (!catSel.value || category(r) === catSel.value) &&
+        (!prioSel.value || r.priority === prioSel.value) &&
+        (!citySel.value || r.location === citySel.value) &&
+        (!query || DashboardModel.companyKey(r.company).includes(query)));
       const openRows = filtered.filter(isCycleOpen);
       const notOpenRows = filtered.filter(r => !isCycleOpen(r));
 
-      document.getElementById('pending-open-title').textContent = `已确认开放，还没投（${openRows.length}）`;
-      document.getElementById('pending-notopen-title').textContent = `未开 / 状态不明（${notOpenRows.length}）`;
+      document.getElementById('pending-open-title').textContent = `已确认开放，还没投（${openRows.length} 家公司）`;
+      document.getElementById('pending-notopen-title').textContent = `未开 / 状态不明（${notOpenRows.length} 家公司）`;
 
       openEl.innerHTML = '';
       notOpenEl.innerHTML = '';
       openEl.innerHTML = openRows.length ? '' : '<div class="empty">没有匹配的记录</div>';
       notOpenEl.innerHTML = notOpenRows.length ? '' : '<div class="empty">没有匹配的记录</div>';
-      openRows.forEach(r => openEl.appendChild(rowCard(r)));
-      notOpenRows.forEach(r => notOpenEl.appendChild(rowCard(r)));
+      openRows.forEach(company => openEl.appendChild(companyCard(company)));
+      notOpenRows.forEach(company => notOpenEl.appendChild(companyCard(company)));
     }
     catSel.onchange = draw; prioSel.onchange = draw; citySel.onchange = draw; search.oninput = draw;
     draw();
   }
 
-  // ---------- ended view ----------
-  function renderEnded() {
-    const listEl = document.getElementById('ended-list');
-    const search = document.getElementById('ended-search');
-    let rows = data.jobPool.filter(r => r.status === 'Offer' || r.status === 'Rejected');
+  // ---------- consolidated action items ----------
+  function renderActions() {
+    const listEl = document.getElementById('actions-list');
+    const search = document.getElementById('actions-search');
+    const expandBtn = document.getElementById('actions-expand');
+    const items = DashboardModel.actionItems(data.jobPool, data.blockerQueue);
+    let expanded = false;
+    const field = (label, value) => value ? `<dt>${esc(label)}</dt><dd>${escMultiline(value)}</dd>` : '';
+    function draw() {
+      const query = DashboardModel.companyKey(search.value);
+      const filtered = items.filter(item => !query || DashboardModel.companyKey([
+        item.company, ...item.titles,
+        ...item.rows.flatMap(row => [row.current_stage, row.blocker, row.next_action]),
+        ...item.blockers.flatMap(row => [row.blocker_category, row.what_happened, row.why_blocked, row.user_action_needed, row.next_retry_strategy]),
+      ].join(' ')).includes(query));
+      document.getElementById('actions-count').textContent = `${filtered.length} 组待办 · 岗位池 ${filtered.reduce((n, item) => n + item.rows.length, 0)} 条 · 未关闭问题 ${filtered.reduce((n, item) => n + item.blockers.length, 0)} 项`;
+      listEl.innerHTML = filtered.length ? '' : '<div class="empty">没有匹配的未完成事项</div>';
+      filtered.forEach(item => {
+        const progress = [...new Set(item.rows.map(row => row.current_stage).filter(Boolean))].join('；');
+        const categories = [...new Set(item.blockers.map(row => row.blocker_category).filter(Boolean))];
+        const poolDetails = item.rows.map(row => `<section class="action-section">
+          ${field('岗位进度 · ' + (row.job_title || '待核实岗位'), row.current_stage || row.status)}
+          ${field('阻塞 / 待补信息', row.blocker)}${field('下一步', row.next_action)}
+          ${row.job_url ? `<dt>岗位入口</dt><dd>${jobLink(row.job_url)}</dd>` : ''}
+        </section>`).join('');
+        const blockerDetails = item.blockers.map((row, index) => `<section class="action-section">
+          ${field('未关闭事项 ' + (index + 1) + ' · ' + (row.blocker_category || '待复核'), row.what_happened || row.why_blocked || '尚未填写经过')}
+          ${field('原因', row.why_blocked)}${field('需要补充 / 操作', row.user_action_needed)}
+          ${field('恢复后下一步', row.next_retry_strategy)}
+          ${field('记录日期 / 状态', [row.date, row.status].filter(Boolean).join(' · '))}
+          ${row.job_url ? `<dt>问题现场</dt><dd>${jobLink(row.job_url)}</dd>` : ''}
+        </section>`).join('');
+        const card = cardEl(`<div class="card-top"><div>
+          <div class="card-title">${esc(item.company || '公司待核实')} · ${esc(item.titles.join(' / ') || '岗位待核实')}</div>
+          <div class="card-sub">${esc(progress || item.blockers[0]?.what_happened || '展开查看剩余事项')}</div>
+          <div class="tags">${categories.map(value => `<span class="chip chip-warning">${esc(value)}</span>`).join('')}
+            ${item.rows.some(row => row.status === 'Blocked') ? '<span class="chip chip-critical">流程阻塞</span>' : ''}
+            ${item.rows.some(row => row.status === 'Needs user') ? '<span class="chip">待补信息 / 选择</span>' : ''}
+          </div>
+        </div></div><div class="detail">${poolDetails}${blockerDetails}</div>`);
+        card.classList.add('action-card');
+        card.classList.toggle('open', expanded);
+        listEl.appendChild(card);
+      });
+    }
+    search.oninput = draw;
+    expandBtn.onclick = () => {
+      expanded = !expanded;
+      expandBtn.textContent = expanded ? '收起全部' : '展开全部';
+      listEl.querySelectorAll('.card').forEach(card => card.classList.toggle('open', expanded));
+    };
+    draw();
+  }
+
+  // ---------- separate outcome views ----------
+  function renderOutcome(view, status) {
+    const listEl = document.getElementById(view + '-list');
+    const catSel = document.getElementById(view + '-filter-cat');
+    const search = document.getElementById(view + '-search');
+    const rows = data.jobPool.filter(r => DashboardModel.isRoleRecord(r) && r.status === status);
+    if (catSel.options.length <= 1) {
+      [...new Set(rows.map(category))].sort(compareCategories).forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat; option.textContent = cat; catSel.appendChild(option);
+      });
+    }
 
     function draw() {
       let filtered = rows.slice();
-      if (search.value.trim()) {
-        const q = search.value.trim().toLowerCase();
-        filtered = filtered.filter(r => (r.company||'').toLowerCase().includes(q));
+      if (catSel.value) filtered = filtered.filter(r => category(r) === catSel.value);
+      const query = DashboardModel.companyKey(search.value);
+      if (query) {
+        filtered = filtered.filter(r => DashboardModel.companyKey(r.company).includes(query) ||
+          DashboardModel.companyKey(r.job_title).includes(query));
       }
-      filtered.sort((a,b) => (a.status === 'Offer' ? -1 : 1) - (b.status === 'Offer' ? -1 : 1));
+      filtered.sort((a,b) => (submittedDateFor(b)||'').localeCompare(submittedDateFor(a)||''));
 
       listEl.innerHTML = '';
-      if (!filtered.length) { listEl.innerHTML = '<div class="empty">暂无已结束的投递</div>'; return; }
+      if (!filtered.length) {
+        const emptyText = rows.length ? '没有匹配的记录' : status === 'Offer' ? '暂无 Offer 记录' : '暂无已挂记录';
+        listEl.innerHTML = `<div class="empty">${emptyText}</div>`;
+        return;
+      }
       filtered.forEach(r => {
         const cat = category(r);
         const resultChip = r.status === 'Offer'
-          ? '<span class="chip chip-good">🟢 Offer</span>'
+          ? '<span class="chip chip-good">拿到 Offer</span>'
           : '<span class="chip chip-critical">已挂</span>';
-        const jd = jdFor(r.company);
+        const jd = jdFor(r);
         const html = `
           <div class="card-top">
             <div>
@@ -671,15 +835,17 @@
                 ${resultChip}
               </div>
             </div>
-            <div class="card-right">${esc(submittedDateFor(r))}</div>
+            <div class="card-right">${esc(submittedDateLabel(r))}</div>
           </div>
           <div class="detail">
             <dt>岗位描述（JD）</dt><dd>${jd ? escMultiline(jd) : '暂未记录'}</dd>
+            ${classificationDetail(r)}
             <dt>备注</dt><dd>${esc(r.notes)}</dd>
           </div>`;
         listEl.appendChild(cardEl(html));
       });
     }
+    catSel.onchange = draw;
     search.oninput = draw;
     draw();
   }
@@ -687,6 +853,7 @@
   // ---------- calendar ----------
   let calSelectedJob = null;   // job_pool row the form currently has selected
   let calEditingRowIndex = null; // follow_up.csv rowIndex when editing an existing event, null when adding
+  let calExpectedEvent = null; // Original values protect against concurrent CSV edits.
 
   function ymd(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -749,6 +916,8 @@
     document.getElementById('cal-selected-job').classList.add('hidden');
     calSelectedJob = null;
     calEditingRowIndex = null;
+    calExpectedEvent = null;
+    document.getElementById('cal-save-btn').disabled = false;
   }
 
   function selectCalendarJob(r) {
@@ -765,15 +934,17 @@
     document.getElementById('calendar-form').classList.remove('hidden');
     if (existingEvent) {
       calEditingRowIndex = existingEvent.__rowIndex;
+      calExpectedEvent = { date: existingEvent.date, time: existingEvent.time, event_type: existingEvent.event_type };
       document.getElementById('cal-date').value = existingEvent.date;
       document.getElementById('cal-time').value = existingEvent.time;
       document.getElementById('cal-event-type').value = existingEvent.event_type;
-      const jobRow = data.jobPool.find(r => r.company === existingEvent.company && r.job_title === existingEvent.job_title && r.status === 'Submitted');
-      if (jobRow) {
-        selectCalendarJob(jobRow);
+      const matches = data.jobPool.filter(r => r.company === existingEvent.company && r.job_title === existingEvent.job_title &&
+        (!existingEvent.job_url || r.job_url === existingEvent.job_url) && DashboardModel.isRoleRecord(r) && r.status === 'Submitted');
+      if (matches.length === 1) {
+        selectCalendarJob(matches[0]);
       } else {
         const sel = document.getElementById('cal-selected-job');
-        sel.textContent = '找不到对应的"已投递"岗位了（可能状态已变化）— 需要重新搜索选择';
+        sel.textContent = matches.length > 1 ? '有多个同名岗位，需重新搜索并选择对应岗位' : '找不到对应的"已投递"岗位了（可能状态已变化）— 需要重新搜索选择';
         sel.classList.remove('hidden');
       }
     }
@@ -783,7 +954,7 @@
     const resultsEl = document.getElementById('cal-company-results');
     const query = q.trim().toLowerCase();
     if (!query) { resultsEl.classList.add('hidden'); resultsEl.innerHTML = ''; return; }
-    const pool = data.jobPool.filter(r => r.status === 'Submitted');
+    const pool = data.jobPool.filter(r => DashboardModel.isRoleRecord(r) && r.status === 'Submitted');
     const matches = pool.filter(r =>
       (r.company || '').toLowerCase().includes(query) || (r.job_title || '').toLowerCase().includes(query)
     ).slice(0, 8);
@@ -795,7 +966,8 @@
     }
     matches.forEach(r => {
       const btn = document.createElement('button');
-      btn.textContent = r.company + ' · ' + r.job_title;
+      btn.textContent = r.company + ' · ' + r.job_title + (r.location ? ' · ' + r.location : '');
+      btn.title = r.job_url || '';
       btn.addEventListener('click', () => selectCalendarJob(r));
       resultsEl.appendChild(btn);
     });
@@ -818,8 +990,8 @@
     try {
       const isEdit = calEditingRowIndex !== null;
       const body = isEdit
-        ? { followUpRowIndex: calEditingRowIndex, jobRowIndex: calSelectedJob.__rowIndex, company: calSelectedJob.company, job_title: calSelectedJob.job_title, date, time, event_type }
-        : { jobRowIndex: calSelectedJob.__rowIndex, company: calSelectedJob.company, job_title: calSelectedJob.job_title, date, time, event_type };
+        ? { followUpRowIndex: calEditingRowIndex, expectedEvent: calExpectedEvent, jobRowIndex: calSelectedJob.__rowIndex, company: calSelectedJob.company, job_title: calSelectedJob.job_title, job_url: calSelectedJob.job_url || '', date, time, event_type }
+        : { jobRowIndex: calSelectedJob.__rowIndex, company: calSelectedJob.company, job_title: calSelectedJob.job_title, job_url: calSelectedJob.job_url || '', date, time, event_type };
       const res = await fetch(isEdit ? '/api/calendar/update' : '/api/calendar/add', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
@@ -867,7 +1039,7 @@
 
   // ---------- navigation ----------
   function showView(name) {
-    ['home','applied','pending','ended'].forEach(v => {
+    ['home','applied','pending','rejected','offers','actions'].forEach(v => {
       document.getElementById(v + '-view').classList.toggle('hidden', v !== name);
     });
   }

@@ -25,7 +25,7 @@ Default handling:
 - High-impact answers require exact profile facts or answer-bank wording.
 - Voluntary self-ID defaults to blank, "Prefer not to say", or decline/skip when the form allows it. If the user does not configure exact answers, tell them JobHuntBot will default to non-disclosure.
 - For custom questions, draft a concise answer from the user's facts and ask once before reuse.
-- Reuse or adapt confirmed custom-answer patterns later, but stop if the answer introduces a new claim, unsupported metric, legal/visa/salary fact, portfolio/writing sample, video, or company-specific technical claim.
+- Reuse confirmed patterns. Queue unsupported new claims or materials while continuing other fields; collect genuinely missing information for one review after the fill pass.
 
 Examples:
 
@@ -97,3 +97,5 @@ User-provided answers, if any:
 | Question pattern | Reusable answer or pattern | When to customize |
 |---|---|---|
 |  |  |  |
+
+Before declaring a field missing, check the latest applicable profile confirmations and corrections, respecting their date and company scope. Record field/section/application blocker scope, saved versus unsaved work, unseen pages and the exact resume point with `application-progress.template.json` in a private drafts directory. Never store passwords, OTPs, cookies or session tokens.

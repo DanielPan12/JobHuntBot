@@ -9,8 +9,23 @@ Use this reference for browser-based job applications, LinkedIn Easy Apply, Simp
 - Close each completed or skipped job tab before moving on.
 - Keep only tabs that need user handoff.
 - Record every outcome in the dashboard.
-- Stop rather than bypass verification or guess high-impact answers.
-- Do not create separate "test" and "normal" behavior modes. Use one default behavior: automate clear low-risk fields, ask focused questions for missing high-impact facts, and always stop before final submit.
+- Do not bypass verification or guess high-impact answers. Isolate the affected scope and complete independent authorized work.
+- Fill all reachable confirmed fields, collect unresolved items, and submit only with explicit authorization that covers the current application. Existing scoped authorization need not be repeated.
+
+## Completion Scope and Interruption Rules
+
+The goal of a fill pass is to exhaust reachable, independent work, not merely finish one tool batch. A tool result, module save, or local validation error is not by itself a reason to end the turn or ask the user to take over.
+
+1. **Resolve sources and authorization once.** Read the current conversation, private rules, candidate profile (including dated confirmations and application-specific updates), chosen resume, answer bank, and existing draft. Record the target company/role/cycle, resume and authorized actions. For a fact, prefer the latest applicable user confirmation or explicit correction over older defaults; use scope as well as date. Candidate Profile owns facts, Answer Bank owns phrasing, Resume Routing owns material selection, and application logs own historical outcomes. A per-company salary, consent, start date, adjustment preference, or placeholder is not a general preference. Do not mistake a newer upload authorization for a new personal fact. When sources genuinely conflict without a clear correction, queue only that fact. Do not re-ask a confirmed value just because it is absent from the first profile section read.
+2. **Map the reachable form.** Inspect visible sections, tabs, required/optional fields, attachments, parsed entries and validation messages. Record sections hidden behind a required-field gate as `unreachable` or `uninspected`, not complete. Open other sections through the site's supported navigation when safe; do not clear correct data or trigger submission to explore. Upload the chosen resume before manual repair when practical, then audit the parsed result.
+3. **Classify each unresolved item by scope.** `field`: one missing answer, unknown date or failed widget; `section`: a required field prevents saving or advancing that module; `application`: login, CAPTCHA/anti-bot, permission, or navigation gate makes all remaining form work unreachable. Record the actual observed scope; an upload failure or sensitive question is not automatically application-wide. For a local technical failure, inspect once and try one targeted supported alternative; stop retrying that control if it still fails and continue elsewhere. Never bypass a control or supply invented values to unlock later pages.
+4. **Complete every independent reachable section.** Fill and verify known values, all selected experiences, user-required optional sections and authorized files. Missing portfolio/video, unclear salary/legal wording, an experience cap, or one unknown self-ID answer joins a pending list while the rest proceeds. Draft unconfirmed custom wording from known facts and reserve its approval for the same list. Save valid sections through an available save-draft action; when validation prevents saving, explicitly record `filled_unsaved` and preserve the browser tab plus a minimal private checkpoint. Do not describe unsaved text as saved.
+5. **Use one consolidated handoff after the pass.** Report completed and saved sections, remaining gaps grouped by user answer/action, the relevant form labels and why each item needs input, unseen pages and the resume point. Include proposed wording or choices when useful, without inventing facts. Distinguish required gaps from optional blanks; an unknown optional field does not require the user to answer it unless their rules require that section. If final submission authorization is also absent, combine it with this review when the consequence is clear. Progress notices and the experience list are informational, not additional confirmation requests.
+6. **Resume from the checkpoint.** On return, read the user's answers and current page before mutating it. Apply only the gaps/corrections, recheck dependent values and newly unlocked pages, and avoid duplicate experiences, uploads, or submissions. Newly revealed requirements may justify a further consolidated request after that newly reachable pass; do not claim all pages were reviewed before they were reachable.
+
+An immediate handoff is appropriate when a whole-application gate prevents further authorized work, an action exceeds existing permissions, or continuing would lose unsaved data. Before handing off, capture the current progress and exact user action; do any independent local preparation that remains useful. A login or anti-bot page must not be bypassed. When the user authorized several applications, one blocked application does not cancel the other authorized targets, but it does not authorize adding targets either.
+
+Use `../templates/application-progress.template.json` as a lightweight checkpoint at `drafts/<company>-<job-id>-<cycle>.json`. Keep field-level facts in Candidate Profile; checkpoint source paths and unresolved labels rather than duplicating sensitive values. Record `blocked_scope`, filled/saved/readback state, unseen sections and next action. Never store passwords, OTPs, cookies or session tokens. Before handing off, link this draft from the existing blocker record/next action; after resolution, close the related blocker and mark the checkpoint complete only when the observed result supports it.
 
 ## Batch Filling & Consolidated Verification
 
@@ -20,9 +35,9 @@ Use this execution pattern by default with the current authorized browser tool:
 2. **Fill a predictable batch.** In one tool call, execute as many known actions as the tool supports within its timeout: normally a complete basic-information, education, internship, or project module; combine adjacent simple modules when practical. Use sequential awaited UI actions on the same page, not concurrent mutations. Include save and readback in that call when their controls and resulting state are known. A normal text field does not need its own model turn.
 3. **Respect dependencies.** For dependent dropdowns, autocomplete, dates, and newly added entries, wait for the actual options or controls to appear and select real options. Continue within the batch when the next step is observed and unambiguous. An unexpected modal, navigation, or ambiguous control ends that batch with its progress and relevant state returned. Do not guess stale locators, use hidden write APIs, or remove necessary waits to increase batch size; avoid arbitrary sleeps when an observable readiness condition is available.
 4. **Audit together.** After the module is saved, read back all its values, entry counts, date controls, save status, and validation errors in one inspection. Return a compact coverage/result summary plus mismatches, missing values, and errors. Do not read the full page or take a screenshot after every successful field. Use broader inspection for an unfamiliar page, the final whole-application review, or a problem that scoped inspection cannot explain.
-5. **Repair only differences.** If a batch partially fails, inspect the current state and resume from the unfinished fields. Preserve correct values and saved entries; check before adding an entry again to avoid duplicates. Retry a failed interaction once with a targeted alternative, then report the remaining blocker instead of replaying the entire batch.
+5. **Repair only differences.** If a batch partially fails, inspect the current state and resume from the unfinished fields. Preserve correct values and saved entries; check before adding an entry again to avoid duplicates. Retry a failed interaction once with a targeted alternative, then queue the remaining blocker and continue other reachable sections instead of replaying the batch or ending the application pass.
 
-Collect missing facts and custom-answer confirmations into one focused request where possible, and continue independent confirmed fields while waiting. Keep verification, login, permission, and final-submission boundaries intact. Before final approval, audit the whole application together, including attachments and every required experience; batching changes the number of round trips, not the coverage of checks. After an authorized submission is confirmed, batch the required local dashboard updates and their consistency checks immediately, before starting another company.
+Collect missing facts and custom-answer confirmations throughout the pass, complete independent confirmed fields, then request the unresolved items together. Keep verification, login, permission, and final-submission boundaries intact. Before final approval, audit the whole application together, including attachments and every required experience; batching changes the number of round trips, not the coverage of checks. After an authorized submission is confirmed, batch the required local dashboard updates and their consistency checks immediately, before starting another company.
 
 ### Completion Audit Coverage
 
@@ -36,8 +51,8 @@ Collect missing facts and custom-answer confirmations into one focused request w
 - Basic fields with clear profile values can be filled automatically: name, email, phone, LinkedIn, location, resume upload, and start date.
 - Work authorization, sponsorship, and compensation can be filled only when wording matches the profile or answer bank closely.
 - Voluntary self-ID defaults to blank, "Prefer not to say", or decline/skip when available unless the user configured exact answers.
-- Custom questions should use answer-bank patterns when available. If no pattern exists, draft the specific answer and ask the user to confirm it.
-- Final submit always requires user approval. Show a concise summary before the final click.
+- Reuse confirmed custom-answer patterns. If none applies, draft from known facts and collect it for the consolidated review while continuing other fields.
+- Final submit requires explicit user authorization for this application. Reuse valid existing authorization for the unchanged target and materials; otherwise request it at the final consolidated review.
 
 ## Low-Friction Applications
 
@@ -59,7 +74,7 @@ Use the fastest reliable method first, then escalate only when needed:
 1. Browser automation / Playwright-style control: best for batch work, normal buttons, form fields, tab cleanup, and repeatable ATS flows.
 2. DOM plus keyboard repair: use Escape, Tab, Enter, arrow keys, and real option selection when dropdowns or overlays misbehave.
 3. Visual or computer-use control: use when the page state matters visually, buttons are covered, dropdowns are custom, uploads are silent, or DOM state and visible state disagree.
-4. User handoff: use for CAPTCHA, Cloudflare, login, 2FA, sensitive legal questions, missing materials, or permission prompts.
+4. Scoped user handoff: queue missing materials, unclear legal answers and local permission failures while completing independent reachable work. Hand off immediately for CAPTCHA, Cloudflare, login/2FA or another gate only when all remaining authorized work is unreachable; do not bypass the control.
 
 Playwright is an implementation detail, not the user-facing concept. Describe it to users as fast browser automation unless they ask for the technical details.
 
@@ -69,7 +84,7 @@ Playwright is an implementation detail, not the user-facing concept. Describe it
 
 Before long runs, verify that the agent can click, read pages, switch tabs, and upload files. Also verify browser extension permissions for the target websites.
 
-If permissions fail mid-run, record the exact permission needed and stop that application.
+If permissions fail mid-run, record the exact permission and affected scope. Do not bypass it. An upload permission failure can leave other form modules usable: finish those before the consolidated handoff. Stop the whole application pass only when no independent authorized work remains reachable.
 
 ### 2. Dropdowns That Look Selected But Are Not
 
@@ -142,7 +157,7 @@ CAPTCHA, hCaptcha, reCAPTCHA, Cloudflare, and anti-bot checks must be treated as
 
 ### 8. Login Sessions and Account Choice
 
-If a login page appears, stop and record `Login required` or `Session expired`.
+If a login page appears, record `Login required` or `Session expired` and do not proceed through authentication without authorization. When the login gates all remaining application work, hand off with saved progress and unseen pages. If it affects only an optional integration or a separate attachment flow, preserve that local blocker and continue independent accessible sections without bypassing login.
 
 Do not attempt automatic login unless the user explicitly instructs it and the flow is safe. If multiple LinkedIn or email accounts exist, use the account specified in the candidate profile or rules.
 
@@ -158,7 +173,7 @@ Watch for:
 - Wrong resume variant attached.
 - Browser permission failure.
 
-If upload cannot be verified, mark `Needs user` or `Blocked`; do not submit without a resume unless the user explicitly allows it.
+If upload cannot be verified, queue the attachment issue and complete independent reachable sections before handoff. Record whether the issue blocks one field or the whole application; do not silently submit without a required resume or substitute another file.
 
 ### 10. Goal Mode Expectations
 

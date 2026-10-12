@@ -59,6 +59,8 @@ Fit labels:
 
 ## Resume Variants
 
+Reuse an approved role/city/resume pairing or explicitly delegated selection; the routing table alone is not application authorization. The experience list is an informational progress notice, not another approval gate. Queue new material or slot-limit decisions while completing independent sections.
+
 | Role family | Resume file path | Use for titles | Do not use for | Notes |
 |---|---|---|---|---|
 | Product Manager |  |  |  |  |
@@ -84,6 +86,14 @@ Do not tailor when:
 - Role is low fit.
 - Form is long and conversion probability is low.
 - Stable resume variant is already a strong match.
+
+When creating or tailoring a resume:
+
+- Select the verified internship and project entries that best match the JD.
+- Use STAR for every internship and project entry: make situation/task, specific actions, and results clear across its bullets. Never invent missing results or metrics.
+- Within each of Education, Internships, and Projects, sort entries newest to oldest: ongoing first, then later end date, then later start date as the tie-breaker. JD relevance may change emphasis, not chronology.
+- The exported PDF must be exactly one full page: no second page, clipped content, or conspicuously empty bottom area. Fit it by tightening or expanding non-repetitive wording and bullets, spacing, and readable typography while retaining all material information.
+- Render and visually inspect the final PDF, and verify the page count is one before delivery or upload.
 
 ## Editable Source Requirements
 
@@ -117,5 +127,7 @@ Truthfulness rule:
 Before submitting:
 
 - Confirm the selected resume is the intended file.
+- Confirm all internship and project entries follow STAR and all three chronological sections are newest-first.
+- Confirm the rendered PDF is exactly one page, visually fills the page, and has no clipping or excessive repetition.
 - Confirm upload succeeded.
 - Confirm the file name displayed on the site matches the selected variant.

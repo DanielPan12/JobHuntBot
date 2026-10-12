@@ -1,0 +1,27 @@
+name: Validate public package
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check public package privacy and empty starter data
+        run: node scripts/check-public-package.js
+      - name: Test release guard
+        run: node --test scripts/check-public-package.test.js
+      - name: Test dashboard and CSV storage
+        run: node --test dashboard/tests/*.test.js
+      - name: Audit empty dashboard
+        run: node dashboard/scripts/audit-data.js
+      - name: Validate company classifications
+        run: node dashboard/scripts/company-categories.js --check

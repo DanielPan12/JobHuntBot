@@ -31,7 +31,8 @@ Fields:
 - `company`, `job_title`, `role_family`, `level`, `location`, `remote_policy`.
 - `source`, `job_url`, `posted_date`.
 - `priority`: High, Medium, Low, Stretch.
-- `status`: Submitted, Skipped, Blocked, Needs user, Pending.
+- `status`: Submitted, Skipped, Blocked, Needs user, Pending, Offer, Rejected.
+- `record_type` (optional): `role` by default; `company_summary` preserves research/history without counting as another submitted or ended role.
 - `resume_variant`: selected resume route.
 - `skip_reason`: why skipped.
 - `blocker`: current blocker if any.
@@ -53,6 +54,7 @@ Fields:
 - `answers_used`: answer bank sections or custom answers used.
 - `confirmation_url`, `confirmation_text`.
 - `notes`.
+- `job_description`: saved official posting text when available; missing historical originals must stay explicit.
 
 ### `blocker_queue.csv`
 
@@ -108,11 +110,28 @@ Fields:
 ## Counting Rules
 
 - Count only confirmed submissions in `submitted_count`.
-- Put every job in `job_pool.csv` once.
+- Deduplicate `job_pool.csv` by company, requisition and recruiting cycle, not title alone. Preserve distinguishable, explicitly permitted repeat attempts and previous outcomes.
+- `company_summary` rows retain research without inflating Applied/Rejected/Offer counts. Blank `record_type` is treated as `role` for compatibility.
+- Keep `Offer` and `Rejected` separate; passing an interview does not mean an offer was received. User-reported outcomes can be recorded with source and known terms without fabricating submission history, acceptance or receipt dates.
+- Pending is grouped by company and excludes companies with submitted/ended history. This display rule does not prohibit a permitted additional application. Read full records and verify current application limits.
+- The action queue merges open/retry-later blockers and `Needs user` / `Blocked` roles, preserving multiple gaps and post-submission issues. Resolve the relevant blockers when the issue is actually fixed.
 - Put every real application attempt in `application_log.csv`, even if it failed.
-- For lead-finding-only trials, leave `application_log.csv` empty because no application attempt occurred.
+- For a fresh lead-finding-only trial, leave `application_log.csv` empty. In an existing tracker, preserve historical log rows unchanged.
 - Put repeatable failures in `blocker_queue.csv`.
 - Convert repeated blockers into `automation_rules.csv`.
+
+## Integrity Checks
+
+Use the bundled `dashboard/csv-store.js` snapshot-read and atomic-write helpers rather than manually splitting or joining CSV strings. Match dates and job descriptions by exact role; do not borrow another role's facts solely because the company matches. Preserve unknown historical facts as unknown.
+
+From the private workspace root, run:
+
+```sh
+node dashboard/scripts/audit-data.js
+node dashboard/scripts/company-categories.js --check
+```
+
+`company_categories.json` stores the user's company groups separately from CSVs. Define the three supported category labels during setup, reuse existing choices, and record dated evidence and recommendation provenance for new entries. The public package ships an empty map.
 
 ## Lead-Finding Trial Rules
 

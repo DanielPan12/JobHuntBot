@@ -1,387 +1,224 @@
-// Zero-dependency static file server for the local job-search dashboard.
-// Serves this folder on http://localhost:8420 so dashboard.html can fetch()
-// the CSV files with fresh data on every reload. Also exposes write
-// endpoints so the dashboard can:
-//   - mark a job as Offer/Rejected (POST /api/update-status)
-//   - add/edit/delete an upcoming calendar event, which also stamps the
-//     job's current_stage in job_pool.csv (POST /api/calendar/*)
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+// Zero-dependency local dashboard server. Run with: node server.js
+// All mutations use validated CSV snapshots and recoverable file replacements.
+const http = require('node:http');
+const fs = require('node:fs');
+const path = require('node:path');
+const { createCSVStore } = require('./csv-store.js');
 
 const PORT = 8420;
-const ROOT = __dirname;
-const JOB_POOL_PATH = path.join(ROOT, 'job_pool.csv');
-const FOLLOW_UP_PATH = path.join(ROOT, 'follow_up.csv');
-
 const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.csv': 'text/csv; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.csv': 'text/csv; charset=utf-8', '.json': 'application/json; charset=utf-8',
 };
+const JOB_COLUMNS = ['company', 'job_title', 'status', 'current_stage'];
+const EVENT_COLUMNS = ['date', 'company', 'job_title', 'contact', 'channel', 'event_type', 'deadline', 'next_action', 'status', 'notes', 'time'];
 
-// Same quoted-field CSV dialect job_pool.csv already uses (every field
-// quoted, "" for an embedded quote, CRLF line endings).
-function parseCSV(text) {
-  const rows = [];
-  let row = [], field = '', inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i], next = text[i + 1];
-    if (inQuotes) {
-      if (c === '"' && next === '"') { field += '"'; i++; }
-      else if (c === '"') { inQuotes = false; }
-      else { field += c; }
-    } else {
-      if (c === '"') { inQuotes = true; }
-      else if (c === ',') { row.push(field); field = ''; }
-      else if (c === '\r') { /* skip */ }
-      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-      else { field += c; }
-    }
-  }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
-  while (rows.length && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === '') rows.pop();
-  return rows;
-}
-
-function stringifyField(f) {
-  return '"' + String(f == null ? '' : f).replace(/"/g, '""') + '"';
-}
-
-function stringifyCSV(rows) {
-  return rows.map(r => r.map(stringifyField).join(',')).join('\r\n') + '\r\n';
-}
-
-function readCSVRows(filePath) {
-  const text = fs.readFileSync(filePath, 'utf8');
-  const rows = parseCSV(text);
-  return { header: rows[0], dataRows: rows.slice(1) };
-}
-
-function writeCSVRows(filePath, header, dataRows) {
-  fs.writeFileSync(filePath, stringifyCSV([header, ...dataRows]));
+function problem(status, message) { const error = new Error(message); error.httpStatus = status; return error; }
+function sendJSON(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(body));
 }
 
 function readJSONBody(req) {
   return new Promise((resolve, reject) => {
-    let body = '';
+    const chunks = [];
+    let bytes = 0, oversized = false;
     req.on('data', chunk => {
-      body += chunk;
-      if (body.length > 1e6) req.destroy(); // guard against runaway payloads
+      bytes += chunk.length;
+      if (bytes > 1e6) {
+        oversized = true; chunks.length = 0;
+        reject(problem(413, 'JSON body exceeds 1 MB'));
+      } else if (!oversized) chunks.push(chunk);
     });
     req.on('end', () => {
-      try { resolve(JSON.parse(body)); }
-      catch (e) { reject(new Error('Invalid JSON body')); }
+      if (oversized) return;
+      try {
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error();
+        resolve(body);
+      } catch (_) { reject(problem(400, 'Body must be a valid JSON object')); }
     });
     req.on('error', reject);
+    req.on('aborted', () => reject(problem(400, 'Request body was interrupted')));
   });
 }
 
-function sendJSON(res, statusCode, obj) {
-  res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(obj));
+function validateEvent({ date, time, event_type }) {
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date.startsWith('0000')) {
+    throw problem(400, 'date must be a real YYYY-MM-DD date');
+  }
+  const parsed = new Date(date + 'T00:00:00Z');
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
+    throw problem(400, 'date must be a real YYYY-MM-DD date');
+  }
+  if (typeof time !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+    throw problem(400, 'time must be HH:MM from 00:00 to 23:59');
+  }
+  if (typeof event_type !== 'string' || !event_type.trim()) throw problem(400, 'event_type is required');
 }
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_RE = /^\d{2}:\d{2}$/;
-
-async function handleUpdateStatus(req, res) {
-  let payload;
-  try {
-    payload = await readJSONBody(req);
-  } catch (e) {
-    return sendJSON(res, 400, { ok: false, error: e.message });
-  }
-
-  const { rowIndex, company, job_title, status } = payload || {};
-  if (!['Offer', 'Rejected'].includes(status)) {
-    return sendJSON(res, 400, { ok: false, error: 'status must be Offer or Rejected' });
-  }
-  if (!Number.isInteger(rowIndex) || rowIndex < 0) {
-    return sendJSON(res, 400, { ok: false, error: 'rowIndex must be a non-negative integer' });
-  }
-
-  let header, dataRows;
-  try {
-    ({ header, dataRows } = readCSVRows(JOB_POOL_PATH));
-  } catch (e) {
-    return sendJSON(res, 500, { ok: false, error: 'Could not read job_pool.csv: ' + e.message });
-  }
-
-  const companyCol = header.indexOf('company');
-  const titleCol = header.indexOf('job_title');
-  const statusCol = header.indexOf('status');
-
-  if (statusCol === -1 || companyCol === -1 || titleCol === -1) {
-    return sendJSON(res, 500, { ok: false, error: 'job_pool.csv is missing an expected column' });
-  }
-  if (rowIndex >= dataRows.length) {
-    return sendJSON(res, 409, { ok: false, error: 'rowIndex out of range — the file may have changed, please refresh' });
-  }
-
-  const target = dataRows[rowIndex];
-  // job_pool.csv may have been rewritten (e.g. by the agent) between page
-  // load and this click, which would shift row positions — confirm the row
-  // at this index is still the same job before overwriting its status.
-  if (target[companyCol] !== company || target[titleCol] !== job_title) {
-    return sendJSON(res, 409, { ok: false, error: 'This row no longer matches — the dashboard data changed, please refresh and try again' });
-  }
-
-  target[statusCol] = status;
-
-  try {
-    writeCSVRows(JOB_POOL_PATH, header, dataRows);
-  } catch (e) {
-    return sendJSON(res, 500, { ok: false, error: 'Could not write job_pool.csv: ' + e.message });
-  }
-
-  sendJSON(res, 200, { ok: true });
+function isWithin(root, filePath) {
+  const relative = path.relative(root, filePath);
+  return relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
 }
 
-// Locate + verify a job_pool.csv row by index, checking it still matches the
-// company/job_title the client last saw (same staleness guard as above).
-// Returns { header, dataRows, companyCol, titleCol, stageCol, target } or
-// throws an Error with an httpStatus property for the caller to relay.
-function locateJobRow(jobRowIndex, company, job_title) {
-  if (!Number.isInteger(jobRowIndex) || jobRowIndex < 0) {
-    const e = new Error('jobRowIndex must be a non-negative integer'); e.httpStatus = 400; throw e;
-  }
-  let header, dataRows;
-  try {
-    ({ header, dataRows } = readCSVRows(JOB_POOL_PATH));
-  } catch (err) {
-    const e = new Error('Could not read job_pool.csv: ' + err.message); e.httpStatus = 500; throw e;
-  }
-  const companyCol = header.indexOf('company');
-  const titleCol = header.indexOf('job_title');
-  const statusCol = header.indexOf('status');
-  const stageCol = header.indexOf('current_stage');
-  if ([companyCol, titleCol, statusCol, stageCol].includes(-1)) {
-    const e = new Error('job_pool.csv is missing an expected column (company/job_title/status/current_stage)'); e.httpStatus = 500; throw e;
-  }
-  if (jobRowIndex >= dataRows.length) {
-    const e = new Error('jobRowIndex out of range — the file may have changed, please refresh'); e.httpStatus = 409; throw e;
-  }
-  const target = dataRows[jobRowIndex];
-  if (target[companyCol] !== company || target[titleCol] !== job_title) {
-    const e = new Error('This job row no longer matches — the dashboard data changed, please refresh and try again'); e.httpStatus = 409; throw e;
-  }
-  if (target[statusCol] !== 'Submitted') {
-    const e = new Error('This job is not in the Submitted/Applied bucket — calendar events are only for already-applied jobs'); e.httpStatus = 409; throw e;
-  }
-  return { header, dataRows, statusCol, stageCol, target };
-}
-
-async function handleCalendarAdd(req, res) {
-  let payload;
-  try {
-    payload = await readJSONBody(req);
-  } catch (e) {
-    return sendJSON(res, 400, { ok: false, error: e.message });
-  }
-
-  const { jobRowIndex, company, job_title, date, time, event_type } = payload || {};
-  if (!DATE_RE.test(date)) return sendJSON(res, 400, { ok: false, error: 'date must be YYYY-MM-DD' });
-  if (!TIME_RE.test(time)) return sendJSON(res, 400, { ok: false, error: 'time must be HH:MM' });
-  if (typeof event_type !== 'string' || !event_type.trim()) {
-    return sendJSON(res, 400, { ok: false, error: 'event_type is required' });
-  }
-
-  let jobRow;
-  try {
-    jobRow = locateJobRow(jobRowIndex, company, job_title);
-  } catch (e) {
-    return sendJSON(res, e.httpStatus || 500, { ok: false, error: e.message });
-  }
-
-  // current_stage is the event content verbatim — no auto-suffix. Every
-  // company's process reads differently, so don't guess a shared phrasing
-  // convention on top of what the user typed.
-  const stage = event_type.trim();
-  jobRow.target[jobRow.stageCol] = stage;
-
-  let fuHeader, fuDataRows;
-  try {
-    ({ header: fuHeader, dataRows: fuDataRows } = readCSVRows(FOLLOW_UP_PATH));
-  } catch (e) {
-    return sendJSON(res, 500, { ok: false, error: 'Could not read follow_up.csv: ' + e.message });
-  }
-  const cols = ['date', 'company', 'job_title', 'contact', 'channel', 'event_type', 'deadline', 'next_action', 'status', 'notes', 'time'];
-  if (cols.some(c => fuHeader.indexOf(c) === -1)) {
-    return sendJSON(res, 500, { ok: false, error: 'follow_up.csv is missing an expected column' });
-  }
-  const newRow = new Array(fuHeader.length).fill('');
-  newRow[fuHeader.indexOf('date')] = date;
-  newRow[fuHeader.indexOf('company')] = company;
-  newRow[fuHeader.indexOf('job_title')] = job_title;
-  newRow[fuHeader.indexOf('event_type')] = event_type.trim();
-  newRow[fuHeader.indexOf('status')] = 'Scheduled';
-  newRow[fuHeader.indexOf('time')] = time;
-  fuDataRows.push(newRow);
-  const followUpRowIndex = fuDataRows.length - 1;
-
-  try {
-    writeCSVRows(JOB_POOL_PATH, jobRow.header, jobRow.dataRows);
-    writeCSVRows(FOLLOW_UP_PATH, fuHeader, fuDataRows);
-  } catch (e) {
-    return sendJSON(res, 500, { ok: false, error: 'Could not write dashboard files: ' + e.message });
-  }
-
-  sendJSON(res, 200, { ok: true, followUpRowIndex, current_stage: stage });
-}
-
-async function handleCalendarUpdate(req, res) {
-  let payload;
-  try {
-    payload = await readJSONBody(req);
-  } catch (e) {
-    return sendJSON(res, 400, { ok: false, error: e.message });
-  }
-
-  const { followUpRowIndex, jobRowIndex, company, job_title, date, time, event_type } = payload || {};
-  if (!Number.isInteger(followUpRowIndex) || followUpRowIndex < 0) {
-    return sendJSON(res, 400, { ok: false, error: 'followUpRowIndex must be a non-negative integer' });
-  }
-  if (!DATE_RE.test(date)) return sendJSON(res, 400, { ok: false, error: 'date must be YYYY-MM-DD' });
-  if (!TIME_RE.test(time)) return sendJSON(res, 400, { ok: false, error: 'time must be HH:MM' });
-  if (typeof event_type !== 'string' || !event_type.trim()) {
-    return sendJSON(res, 400, { ok: false, error: 'event_type is required' });
-  }
-
-  let fuHeader, fuDataRows;
-  try {
-    ({ header: fuHeader, dataRows: fuDataRows } = readCSVRows(FOLLOW_UP_PATH));
-  } catch (e) {
-    return sendJSON(res, 500, { ok: false, error: 'Could not read follow_up.csv: ' + e.message });
-  }
-  const fuCompanyCol = fuHeader.indexOf('company');
-  const fuTitleCol = fuHeader.indexOf('job_title');
-  if (followUpRowIndex >= fuDataRows.length) {
-    return sendJSON(res, 409, { ok: false, error: 'This event no longer exists — the calendar may have changed, please refresh' });
-  }
-  const fuTarget = fuDataRows[followUpRowIndex];
-  if (fuTarget[fuCompanyCol] !== company || fuTarget[fuTitleCol] !== job_title) {
-    return sendJSON(res, 409, { ok: false, error: 'This event no longer matches — the calendar may have changed, please refresh' });
-  }
-
-  let jobRow;
-  try {
-    jobRow = locateJobRow(jobRowIndex, company, job_title);
-  } catch (e) {
-    return sendJSON(res, e.httpStatus || 500, { ok: false, error: e.message });
-  }
-
-  fuTarget[fuHeader.indexOf('date')] = date;
-  fuTarget[fuHeader.indexOf('time')] = time;
-  fuTarget[fuHeader.indexOf('event_type')] = event_type.trim();
-
-  // Same rule as add: current_stage is the event content verbatim.
-  const stage = event_type.trim();
-  jobRow.target[jobRow.stageCol] = stage;
-
-  try {
-    writeCSVRows(FOLLOW_UP_PATH, fuHeader, fuDataRows);
-    writeCSVRows(JOB_POOL_PATH, jobRow.header, jobRow.dataRows);
-  } catch (e) {
-    return sendJSON(res, 500, { ok: false, error: 'Could not write dashboard files: ' + e.message });
-  }
-
-  sendJSON(res, 200, { ok: true, current_stage: stage });
-}
-
-async function handleCalendarDelete(req, res) {
-  let payload;
-  try {
-    payload = await readJSONBody(req);
-  } catch (e) {
-    return sendJSON(res, 400, { ok: false, error: e.message });
-  }
-
-  const { followUpRowIndex, company, job_title, event_type, date, time } = payload || {};
-  if (!Number.isInteger(followUpRowIndex) || followUpRowIndex < 0) {
-    return sendJSON(res, 400, { ok: false, error: 'followUpRowIndex must be a non-negative integer' });
-  }
-
-  let fuHeader, fuDataRows;
-  try {
-    ({ header: fuHeader, dataRows: fuDataRows } = readCSVRows(FOLLOW_UP_PATH));
-  } catch (e) {
-    return sendJSON(res, 500, { ok: false, error: 'Could not read follow_up.csv: ' + e.message });
-  }
-  if (followUpRowIndex >= fuDataRows.length) {
-    return sendJSON(res, 409, { ok: false, error: 'This event no longer exists — the calendar may have changed, please refresh' });
-  }
-  const fuTarget = fuDataRows[followUpRowIndex];
-  const matches = (col, val) => fuTarget[fuHeader.indexOf(col)] === val;
-  if (!matches('company', company) || !matches('job_title', job_title) || !matches('event_type', event_type) || !matches('date', date) || !matches('time', time)) {
-    return sendJSON(res, 409, { ok: false, error: 'This event no longer matches — the calendar may have changed, please refresh' });
-  }
-
-  fuDataRows.splice(followUpRowIndex, 1);
-
-  try {
-    writeCSVRows(FOLLOW_UP_PATH, fuHeader, fuDataRows);
-  } catch (e) {
-    return sendJSON(res, 500, { ok: false, error: 'Could not write follow_up.csv: ' + e.message });
-  }
-
-  // Deliberately does not revert job_pool.csv's current_stage — there's no
-  // reliable "previous stage" to roll back to. Edit the stage manually if
-  // deleting this event should also change what's shown on the job card.
-  sendJSON(res, 200, { ok: true });
-}
-
-const ROUTES = {
-  '/api/update-status': handleUpdateStatus,
-  '/api/calendar/add': handleCalendarAdd,
-  '/api/calendar/update': handleCalendarUpdate,
-  '/api/calendar/delete': handleCalendarDelete,
-};
-
-const server = http.createServer((req, res) => {
-  const urlPath = decodeURIComponent(req.url.split('?')[0]);
-
-  if (req.method === 'POST' && ROUTES[urlPath]) {
-    ROUTES[urlPath](req, res);
-    return;
-  }
-
-  if (req.method !== 'GET') {
-    res.writeHead(405);
-    res.end('Method not allowed');
-    return;
-  }
-
-  const servedPath = urlPath === '/' ? '/dashboard.html' : urlPath;
-  const filePath = path.join(ROOT, servedPath);
-
-  // Prevent escaping the dashboard folder.
-  if (!filePath.startsWith(ROOT)) {
-    res.writeHead(403);
-    res.end('Forbidden');
-    return;
-  }
-
-  fs.readFile(filePath, (err, content) => {
-    if (err) {
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('Not found: ' + urlPath);
-      return;
+function createDashboardServer({ root = __dirname, io = fs } = {}) {
+  root = path.resolve(root);
+  const realRoot = io.realpathSync(root);
+  const store = createCSVStore(io);
+  function load(name, columns) {
+    let table;
+    try { table = store.readCSVRows(path.join(root, name)); }
+    catch (error) { throw problem(500, 'Could not read ' + name + ': ' + error.message); }
+    if (columns.some(column => !table.header.includes(column))) {
+      throw problem(500, name + ' is missing an expected column');
     }
-    const ext = path.extname(filePath);
-    res.writeHead(200, {
-      'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': 'no-store',
-    });
-    res.end(content);
-  });
-});
+    table.get = (row, column) => row[table.header.indexOf(column)];
+    table.set = (row, column, value) => { row[table.header.indexOf(column)] = value; };
+    return table;
+  }
+  function locate(table, index, company, title) {
+    if (!Number.isInteger(index) || index < 0) throw problem(400, 'Row index must be a non-negative integer');
+    const row = table.dataRows[index];
+    if (!row || table.get(row, 'company') !== company || table.get(row, 'job_title') !== title) {
+      throw problem(409, 'This row no longer matches; refresh the dashboard and try again');
+    }
+    return row;
+  }
+  function submittedJob(payload) {
+    const table = load('job_pool.csv', JOB_COLUMNS);
+    const row = locate(table, payload.jobRowIndex, payload.company, payload.job_title);
+    verifyJobURL(table, row, payload);
+    if (table.get(row, 'record_type') === 'company_summary') throw problem(409, 'Company summaries are not individual applications');
+    if (table.get(row, 'status') !== 'Submitted') throw problem(409, 'Calendar events require an already-submitted job; refresh the dashboard');
+    return { table, row };
+  }
+  function verifyJobURL(table, row, payload) {
+    // Identical company/title pairs can be distinct postings or recruitment cycles.
+    if (table.header.includes('job_url') && (typeof payload.job_url !== 'string' || table.get(row, 'job_url') !== payload.job_url)) {
+      throw problem(409, 'This posting URL no longer matches; refresh the dashboard and try again');
+    }
+  }
+  function eventMatches(table, row, expected) {
+    return expected && ['date', 'time', 'event_type'].every(key =>
+      typeof expected[key] === 'string' && table.get(row, key) === expected[key]);
+  }
+  function updateStatus(payload) {
+    if (!['Offer', 'Rejected'].includes(payload.status)) throw problem(400, 'status must be Offer or Rejected');
+    const table = load('job_pool.csv', JOB_COLUMNS);
+    const row = locate(table, payload.rowIndex, payload.company, payload.job_title);
+    verifyJobURL(table, row, payload);
+    if (table.get(row, 'record_type') === 'company_summary') throw problem(409, 'Company summaries are not individual applications');
+    const current = table.get(row, 'status');
+    if (current === payload.status) return { ok: true, status: current, unchanged: true };
+    if (current !== 'Submitted') throw problem(409, 'This job is no longer Submitted; refresh before changing its outcome');
+    table.set(row, 'status', payload.status);
+    store.writeCSVFiles([table]);
+    // application_log records the actual submission attempt and its evidence.
+    // An outcome does not rewrite that historical Submitted fact.
+    return { ok: true, status: payload.status };
+  }
+  function addEvent(payload) {
+    validateEvent(payload);
+    const job = submittedJob(payload);
+    const events = load('follow_up.csv', EVENT_COLUMNS);
+    const stage = payload.event_type.trim();
+    const duplicateIndex = events.dataRows.findIndex(row =>
+      events.get(row, 'company') === payload.company && events.get(row, 'job_title') === payload.job_title &&
+      eventMatches(events, row, { ...payload, event_type: stage }));
+    // Retrying a completed request after a lost response must not add an event twice.
+    if (duplicateIndex !== -1) return { ok: true, followUpRowIndex: duplicateIndex,
+      current_stage: job.table.get(job.row, 'current_stage'), unchanged: true };
+    const row = new Array(events.header.length).fill('');
+    for (const column of ['date', 'time', 'company', 'job_title']) events.set(row, column, payload[column]);
+    events.set(row, 'event_type', stage);
+    events.set(row, 'status', 'Scheduled');
+    events.dataRows.push(row);
+    job.table.set(job.row, 'current_stage', stage);
+    store.writeCSVFiles([job.table, events]);
+    return { ok: true, followUpRowIndex: events.dataRows.length - 1, current_stage: stage };
+  }
+  function updateEvent(payload) {
+    validateEvent(payload);
+    if (!payload.expectedEvent || !['date', 'time', 'event_type'].every(key => typeof payload.expectedEvent[key] === 'string')) {
+      throw problem(400, 'expectedEvent must contain the original date, time and event_type; refresh the dashboard');
+    }
+    const events = load('follow_up.csv', EVENT_COLUMNS);
+    const row = locate(events, payload.followUpRowIndex, payload.company, payload.job_title);
+    if (!eventMatches(events, row, payload.expectedEvent)) {
+      throw problem(409, 'This event changed since it was opened; refresh before editing');
+    }
+    const job = submittedJob(payload);
+    const stage = payload.event_type.trim();
+    events.set(row, 'date', payload.date);
+    events.set(row, 'time', payload.time);
+    events.set(row, 'event_type', stage);
+    job.table.set(job.row, 'current_stage', stage);
+    store.writeCSVFiles([events, job.table]);
+    return { ok: true, current_stage: stage };
+  }
+  function deleteEvent(payload) {
+    const events = load('follow_up.csv', EVENT_COLUMNS);
+    const row = locate(events, payload.followUpRowIndex, payload.company, payload.job_title);
+    if (!eventMatches(events, row, payload)) throw problem(409, 'This event changed; refresh before deleting');
+    events.dataRows.splice(payload.followUpRowIndex, 1);
+    store.writeCSVFiles([events]);
+    // There is no reliable previous stage to restore when deleting a calendar row.
+    return { ok: true, current_stage_unchanged: true };
+  }
+  const routes = {
+    '/api/update-status': updateStatus, '/api/calendar/add': addEvent,
+    '/api/calendar/update': updateEvent, '/api/calendar/delete': deleteEvent,
+  };
 
-// Bind to localhost only — this server can now write to job_pool.csv, so it
-// shouldn't be reachable from other devices on the network.
-server.listen(PORT, '127.0.0.1', () => {
-  console.log('Dashboard running / 仪表盘已启动: http://localhost:' + PORT + '/dashboard.html');
-  console.log('Keep this window open to keep serving; close it or press Ctrl+C to stop.');
-  console.log('保持这个窗口开着；关掉窗口或按 Ctrl+C 即可停止服务。');
-});
+  return http.createServer(async (req, res) => {
+    try {
+      // Loopback binding alone does not prevent a remote page from targeting it.
+      const host = req.headers.host || '';
+      let hostname;
+      try { hostname = new URL('http://' + host).hostname; } catch (_) { throw problem(400, 'Invalid Host header'); }
+      if (!['localhost', '127.0.0.1'].includes(hostname)) throw problem(403, 'Only a localhost Host is allowed');
+      let urlPath;
+      try { urlPath = decodeURIComponent(req.url.split('?')[0]); }
+      catch (_) { throw problem(400, 'Malformed URL encoding'); }
+      if (urlPath.includes('\0')) throw problem(400, 'Invalid URL path');
+      if (Object.hasOwn(routes, urlPath)) {
+        if (req.method !== 'POST') throw problem(405, 'Method not allowed');
+        if (req.headers.origin && req.headers.origin !== 'http://' + host) throw problem(403, 'Cross-origin writes are not allowed');
+        if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) throw problem(415, 'Content-Type must be application/json');
+        const payload = await readJSONBody(req);
+        // No await between reading snapshots and committing: API writes cannot
+        // interleave inside this process; external changes trigger snapshot checks.
+        return sendJSON(res, 200, routes[urlPath](payload));
+      }
+      if (req.method !== 'GET' && req.method !== 'HEAD') throw problem(405, 'Method not allowed');
+      const servedPath = urlPath === '/' ? '/dashboard.html' : urlPath;
+      const filePath = path.resolve(root, '.' + servedPath);
+      if (!isWithin(root, filePath)) throw problem(403, 'Forbidden');
+      let realPath, content;
+      try {
+        realPath = io.realpathSync(filePath);
+        if (!isWithin(realRoot, realPath)) throw problem(403, 'Forbidden');
+        // Do not serve transaction/recovery snapshots or directory listings.
+        if (!MIME[path.extname(realPath)] || !io.statSync(realPath).isFile()) throw problem(404, 'Not found');
+        content = io.readFileSync(realPath);
+      } catch (error) { throw error.httpStatus ? error : problem(404, 'Not found'); }
+      res.writeHead(200, { 'Content-Type': MIME[path.extname(realPath)], 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+      res.end(req.method === 'HEAD' ? undefined : content);
+    } catch (error) {
+      if (!res.headersSent && !res.destroyed) sendJSON(res, error.httpStatus || 500, { ok: false, error: error.message });
+    }
+  });
+}
+
+if (require.main === module) {
+  const server = createDashboardServer();
+  // Keep the established launcher behavior and avoid binding to the local network.
+  server.listen(PORT, '127.0.0.1', () => {
+    console.log('求职进度仪表盘已启动: http://localhost:' + PORT + '/dashboard.html');
+    console.log('保持这个窗口开着；关掉窗口就会停止服务。按 Ctrl+C 手动停止。');
+  });
+  server.on('error', error => { console.error('仪表盘启动失败：' + error.message); process.exitCode = 1; });
+}
+
+module.exports = { createDashboardServer, validateEvent, isWithin };

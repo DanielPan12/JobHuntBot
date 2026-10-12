@@ -1,3 +1,23 @@
 my-materials/
+# Private working data belongs outside this public release package.
+job_search/
+candidate_profile.json
+answer_bank.md
+experience_bank.md
+application_rules.md
+resume_routing.md
+drafts/
+backups/
+.tmp/
+tmp/
+.env
+.env.*
+!.env.example
+*.bak
+*.tmp
+node_modules/
+test-results/
+playwright-report/
+.playwright-mcp/
 .DS_Store
 Thumbs.db

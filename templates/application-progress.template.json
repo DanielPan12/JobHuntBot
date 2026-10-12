@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "updated_at": null,
+  "target": {
+    "company": "",
+    "job_id": "",
+    "job_title": "",
+    "recruiting_cycle": "",
+    "application_url": "",
+    "resume_file": ""
+  },
+  "authorization": {
+    "source_reference": "",
+    "scope": "",
+    "fill_authorized": false,
+    "submit_authorized": false,
+    "conditions": []
+  },
+  "source_references": [],
+  "sections": [
+    {
+      "name": "",
+      "inspection": "uninspected",
+      "state": "not_started",
+      "saved": false,
+      "readback_verified": false,
+      "expected_entries": null,
+      "verified_entries": null,
+      "unresolved_item_ids": []
+    }
+  ],
+  "unresolved_items": [
+    {
+      "id": "",
+      "section": "",
+      "field_label": "",
+      "required": null,
+      "blocked_scope": "field",
+      "reason": "",
+      "source_checked": [],
+      "repair_attempt": "",
+      "needs_user": false,
+      "question_or_action": "",
+      "status": "open"
+    }
+  ],
+  "unreachable_sections": [],
+  "remaining_independent_work": [],
+  "resume_point": {
+    "page_url": "",
+    "section": "",
+    "next_action": "",
+    "unsaved_changes": false
+  },
+  "handoff": {
+    "ready": false,
+    "reason_independent_work_exhausted": "",
+    "question_item_ids": [],
+    "submission_approval_needed": true
+  },
+  "outcome": {
+    "status": "in_progress",
+    "confirmation_evidence": ""
+  },
+  "usage": {
+    "privacy": "Private checkpoint only. Store references rather than sensitive answers. Never store passwords, OTPs, cookies or session tokens.",
+    "sections": "Replace sample entries with actual observed sections. inspection: uninspected, inspected, unreachable. state: not_started, partial, filled_unsaved, saved, verified, not_applicable.",
+    "unresolved_items": "Replace sample entry with actual issues, or use an empty array when none. blocked_scope: field, section, application. Unknown requiredness stays null until observed.",
+    "handoff": "Set ready only after all independent reachable work is done or a documented application-wide gate prevents it. Preserve uninspected pages honestly.",
+    "outcome": "Use in_progress, Needs user, Blocked, Submitted or Skipped as observed. A checkpoint does not replace dashboard outcome records or prove submission."
+  }
+}

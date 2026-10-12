@@ -4,6 +4,8 @@ Use this reference when initializing JobHuntBot for a new user or refreshing the
 
 This document is the agent's SOP, not a form for the user to complete manually. Guide the user through setup conversationally. Draft files and templates for them whenever possible.
 
+Initialize in a separate private working directory. Copy the templates there and remove `.template` from the personal filenames; copy the local dashboard if it will be used. Keep this public package's tracked templates and CSVs empty. `.gitignore` alone cannot protect changes to already tracked files.
+
 Use a lightweight phased setup:
 
 - Minimum viable setup first: collect only what is needed to run safely.
@@ -117,7 +119,7 @@ Recommended sheets:
 - `resume_rules.csv`: role-to-resume mapping and tailoring threshold.
 - `automation_rules.csv`: lessons learned and rule changes from repeated blockers.
 
-Every attempted job must have a final state: `Submitted`, `Skipped`, `Blocked`, `Needs user`, or `Pending`.
+Every researched or attempted job must have an accurate current state. Later outcomes remain distinct from research and submission.
 
 Status meanings:
 
@@ -126,6 +128,12 @@ Status meanings:
 - `Blocked`: the agent attempted but automation could not safely complete it.
 - `Needs user`: the agent cannot decide or proceed because a user-owned fact or action is missing, such as sponsorship, work authorization, compensation, relocation, CAPTCHA, login, upload, or a sensitive answer.
 - `Pending`: the job appears worth later review or application, and there is no known blocker beyond normal user review or prerequisites already listed.
+- `Rejected`: this application received a confirmed rejection.
+- `Offer`: an offer was confirmed received; neither an interview pass nor acceptance is implied.
+
+Use `record_type=company_summary` for company research and `role` for actual jobs. Applied/Rejected/Offer count roles separately. Pending groups by company and excludes companies with submitted/ended history, but discovery still uses the full records. The consolidated action queue includes open or retry-later blockers and `Needs user` / `Blocked` jobs even when the company already has application history. Link dates and JDs to the exact role.
+
+The bundled dashboard also uses `company_categories.json`. Define the user's meanings for 第一类/第二类/第三类, reuse existing categories and distinguish sourced recommendations from user-confirmed choices. After changes, run the data audit and company classification check described in `SKILL.md`.
 
 Use `application_log.csv` for evidence and audit trail. Use `job_pool.csv` for the current state of each job.
 
@@ -144,7 +152,7 @@ At minimum, collect:
 - Roles to avoid.
 - Target level and overleveled titles to skip.
 - Required experience range and stretch-role policy.
-- Freshness policy, usually last 24 hours first and last 48 hours second.
+- Freshness policy appropriate to the candidate's recruiting season, without treating older open postings as closed.
 - Location policy.
 - Sponsorship/work authorization policy.
 - Company and industry preference.
@@ -241,7 +249,7 @@ Keep this lightweight:
 2. Otherwise draft a first version from Candidate Profile.
 3. Ask the user to confirm the first version once.
 4. Reuse low-risk answers after confirmation.
-5. Stop and ask again for high-impact or ambiguous questions.
+5. Queue unresolved high-impact or ambiguous answers and ask about the gaps together after completing independent reachable fields; reuse known facts and applicable authorization.
 
 Examples:
 
@@ -264,18 +272,18 @@ Voluntary self-ID strategy:
 Custom answer policy:
 
 - The agent may draft answers to open-ended application questions from the candidate profile, resume, and answer bank.
-- The first time a question pattern appears, ask the user to confirm the drafted answer.
+- Collect a new question-pattern draft for the consolidated review after completing independent fields.
 - After confirmation, reuse or adapt the pattern for similar questions.
-- Still stop when an answer would introduce a new claim, unsupported metric, legal/visa/salary fact, portfolio/writing sample, video, or company-specific technical claim.
+- Leave unsupported claims or materials pending while completing other fields; never invent missing information.
 
 Default application question behavior:
 
 - Fill basic profile fields automatically when the candidate profile has clear values: name, email, phone, LinkedIn, location, resume upload, and start date.
 - Fill work authorization, sponsorship, and compensation only when the form wording matches the candidate profile or answer bank closely.
-- If wording differs, ask one focused question instead of stopping the whole page.
+- If wording differs materially, queue that question and finish independent reachable fields before the consolidated review.
 - For voluntary self-ID, default to leaving blank, "Prefer not to say", or decline/skip when the form allows it, unless the user configured exact answers.
-- For custom questions, use an answer-bank pattern if one exists. If not, draft one answer and ask the user to confirm it.
-- For final submit, always stop and show a short summary of company, role, resume, high-impact answers, and any custom answer before the user approves submission.
+- For custom questions, reuse a confirmed pattern or draft from known facts and collect any required confirmation in that same review.
+- Before final submit, audit and show a concise summary. Reuse existing explicit authorization for this unchanged application; otherwise request approval at the final consolidated review.
 
 ## 6. First Trial Run
 

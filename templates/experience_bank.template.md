@@ -2,7 +2,9 @@
 
 ## Purpose
 
-`resume_routing.md` decides which resume *file* to submit. This file decides a finer-grained question: **which specific experiences to feature when applying to a given posting.**
+`resume_routing.md` decides which resume *file* to submit. This file stores verified experience evidence for comparing variants, tailoring materials and emphasizing relevant facts in custom answers.
+
+Structured internship/project fields mirror the chosen resume and explicit user-required additions. Read that file before filling; do not use this matrix to independently shorten its entries. If a site caps entries, queue the choice while filling independent sections, or reuse a previously authorized selection.
 
 Use it for:
 
@@ -10,7 +12,7 @@ Use it for:
 - Self-evaluation / cover-letter fields (synthesize personality + selected experiences + this specific company/role fit — don't dump a generic bio)
 - Precision-mode resume bullet ordering/emphasis
 
-Don't list every experience in every field — pick the 2-4 that best fit the specific field length and JD.
+For a free-text answer, emphasize only the verified experiences needed to address that question and its length limit. This does not change the structured entries.
 
 ## Experience Inventory
 
@@ -38,7 +40,7 @@ Most target role families in `application_rules.md`'s `primary_role_families` / 
 
 Build one matrix for internships and one for projects. Columns = the candidate's target role families; rows = experiences from the inventory above; cells = `强` (strong) / `中` (medium) / blank (not relevant — leave it blank, don't force a rating).
 
-Target candidate pool per role family: **3-5 internships + 3+ projects** rated `强`/`中`. If a role family's real candidate pool is genuinely thinner than that, say so explicitly rather than inflating weak matches to hit the number — see the truthfulness rule below.
+Keep every supported match, including overlap across role families. A thin candidate pool stays thin; do not inflate weak matches or invent experiences to meet a target count.
 
 | Experience | Role family 1 | Role family 2 | ... |
 |---|---|---|---|
@@ -46,12 +48,12 @@ Target candidate pool per role family: **3-5 internships + 3+ projects** rated `
 
 (Add a `候选数` / candidate-count row at the bottom once populated, so it's easy to see at a glance which role families are well-supported and which are thin.)
 
-## Pre-Application Calibration Rules
+## Resume Selection and Form Use
 
 1. Pull the `强`/`中` experiences for the target role family from the matrix as a candidate pool.
-2. Read the actual JD and pick 2-4 experiences from that pool that best fit it — favor `强` matches, but a `中` match that hits something the JD specifically calls out can outrank a `强` match that doesn't. If the JD emphasizes something the pool underrepresents, pull in a different experience from the inventory instead of forcing a weak fit.
-3. **Before using the selected experiences, tell the user which ones were picked and why** — a short list with one-line reasoning. This is a checkpoint, not an optional step: don't pick silently and move straight to filling the form.
-4. For self-evaluation/cover-letter fields, synthesize the selected experiences with the candidate's personality and this specific company/role fit — don't write a list dump.
+2. Read the actual JD and use the evidence to recommend a resume variant or tailor materials when authorized. A medium match addressing a specific duty may be more relevant than a broad strong match. Keep selection and emphasis truthful.
+3. Once the role/resume pairing is approved, read its actual entries and briefly state which ones will populate the form. This is an informational progress notice, not another approval gate. Reuse the pairing when resuming; only a new consequential choice requires a decision.
+4. For self-evaluation/cover-letter fields, synthesize relevant evidence with the candidate's personality and this specific company/role fit. Do not remove structured resume entries to match this shorter narrative.
 5. After submitting, record which experiences were actually used in `application_log`'s notes, so a later application to a similar role or company can reuse the reasoning instead of re-deriving it.
 6. **Truthfulness rule**: only reorder, select, and emphasize — never invent, exaggerate, or stretch an experience to make it look like a better fit than it is. A blank cell in the matrix stays blank; a thin candidate pool stays thin. If nothing in the bank fits well, say so and use the closest honest match.
 
